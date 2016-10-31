@@ -1,0 +1,48 @@
+#!/bin/sh
+
+# 
+#  Usage: seamonkey [-mail|-compose] [url]
+#
+#  This script setup all the needed environment to make
+#  seamonkey work properly.
+#
+
+
+MOZ_DIST_BIN=LIBDIR/seamonkey-MOZILLA_VERSION
+
+MOZILLA_FIVE_HOME=$MOZ_DIST_BIN
+export MOZILLA_FIVE_HOME
+
+LD_LIBRARY_PATH=$MOZ_DIST_BIN:$MOZ_DIST_BIN/plugins${LD_LIBRARY_PATH:+":$LD_LIBRARY_PATH"}
+export LD_LIBRARY_PATH
+
+
+MOZ_PLUGIN_DIR=LIBDIR/mozilla/plugins
+[ -x "/usr/bin/mozilla-plugin-config" -a -d "${MOZ_PLUGIN_DIR}-wrapped" ] && \
+	MOZ_PLUGIN_DIR=${MOZ_PLUGIN_DIR}-wrapped
+
+MOZ_PLUGIN_PATH=${MOZ_PLUGIN_PATH:+"$MOZ_PLUGIN_PATH:"}$MOZ_PLUGIN_DIR:$MOZ_DIST_BIN/plugins
+export MOZ_PLUGIN_PATH
+
+
+#
+#  Set MOZ_APP_LAUNCHER for gnome-session
+#
+export MOZ_APP_LAUNCHER="/usr/bin/seamonkey"
+
+#
+#  Disable the GNOME crash dialog, Mozilla has it's own
+# 
+GNOME_DISABLE_CRASH_DIALOG=1
+export GNOME_DISABLE_CRASH_DIALOG
+
+# BEAST fix (rhbz#838879)
+NSS_SSL_CBC_RANDOM_IV=${NSS_SSL_CBC_RANDOM_IV-1}
+export NSS_SSL_CBC_RANDOM_IV
+
+
+#
+#  It always opens a new window (or tab) in an already running instance
+#  (if present), unless the `-new-instance' option is used
+#
+exec $MOZ_DIST_BIN/seamonkey "$@"
