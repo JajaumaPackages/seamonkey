@@ -1,0 +1,20 @@
+diff -Nrbu mozilla/dom/media/platforms/ffmpeg/FFmpegRuntimeLinker.cpp mozilla-OK/dom/media/platforms/ffmpeg/FFmpegRuntimeLinker.cpp
+--- mozilla/dom/media/platforms/ffmpeg/FFmpegRuntimeLinker.cpp	2016-12-14 05:09:32.000000000 +0300
++++ mozilla-OK/dom/media/platforms/ffmpeg/FFmpegRuntimeLinker.cpp	2016-12-22 19:33:57.638152762 +0300
+@@ -29,16 +29,12 @@
+   "libavcodec.57.dylib",
+   "libavcodec.56.dylib",
+   "libavcodec.55.dylib",
+-  "libavcodec.54.dylib",
+-  "libavcodec.53.dylib",
+ #else
+   "libavcodec-ffmpeg.so.57",
+   "libavcodec-ffmpeg.so.56",
+   "libavcodec.so.57",
+   "libavcodec.so.56",
+   "libavcodec.so.55",
+-  "libavcodec.so.54",
+-  "libavcodec.so.53",
+ #endif
+ };
+ 

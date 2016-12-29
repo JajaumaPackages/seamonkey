@@ -1,21 +1,23 @@
-
 %bcond_without	system_nspr
 %bcond_without	system_nss
-%bcond_with	system_sqlite
-%bcond_without	system_libffi
+%bcond_without	system_libvpx
+%bcond_without	system_icu
+%bcond_without	system_sqlite
+%bcond_without	system_ffi
 %bcond_with	system_cairo
 
-%bcond_without	gstreamer
-
 %bcond_without	langpacks
+%bcond_with	calendar
 
-%global nspr_version	4.10.8
-%global nss_version	3.19.1
-%global sqlite_version	3.8.11.1
-%global libffi_version	3.0.9
+%global nspr_version	4.12
+%global nss_version	3.25
+%global libvpx_version	1.5.0
+%global icu_version	50.1
+%global sqlite_version	3.13.0
+%global ffi_version	3.0.9
 %global cairo_version	1.10
 
-%define homepage file:///usr/share/doc/HTML/index.html
+%define homepage http://start.fedoraproject.org/
 
 %define sources_subdir %{name}-%{version}
 
@@ -24,14 +26,15 @@
 
 Name:           seamonkey
 Summary:        Web browser, e-mail, news, IRC client, HTML editor
-Version:        2.40
-Release:        2%{?dist}
+Version:        2.46
+Release:        1%{?dist}
 URL:            http://www.seamonkey-project.org
 License:        MPLv2.0
 Group:          Applications/Internet
 
 Source0:        http://archive.mozilla.org/pub/seamonkey/releases/%{version}/source/seamonkey-%{version}.source.tar.xz
 
+%if %{with langpacks}
 #  Generate it by moz-grab-langpacks script, which can be obtained from
 #  http://fedorapeople.org/cgit/caillon/public_git/gecko-maint.git/
 #  and probably perform "sed -i 's/pyfedpkg/pyrpkg/g' moz-grab-langpacks"
@@ -40,32 +43,36 @@ Source0:        http://archive.mozilla.org/pub/seamonkey/releases/%{version}/sou
 #
 #   Run script as  ./moz-grab-langpacks --app seamonkey %{version}
 #
-Source1:        seamonkey-langpacks-%{version}-20160315.tar.xz
+Source1:        seamonkey-langpacks-%{version}-20161222.tar.xz
+%endif
 
 Source3:        seamonkey.sh.in
 Source4:        seamonkey.desktop
 Source12:       seamonkey-mail.desktop
 Source13:       seamonkey-mail.svg
-Source100:      find-external-requires
+Source100:      seamonkey-find-requires.sh
 
-Patch2:		xulrunner-24.0-jemalloc-ppc.patch
+Patch2:		firefox-48-jemalloc-ppc.patch
 Patch3:		xulrunner-27.0-build-arm.patch
 Patch4:		firefox-33-rhbz-966424.patch
-Patch7:		firefox-35-rhbz-1173156.patch
-Patch10:	firefox-33-build-prbool.patch
-Patch15:        seamonkey-2.35-enable-addons.patch
-Patch20:	seamonkey-2.39-libsuite.patch
-Patch22:	seamonkey-2.32-installdir.patch
-Patch24:	seamonkey-2.40-nss_3_19_1.patch
-Patch27:	seamonkey-2.35-exthandler.patch
+Patch5:		firefox-35-rhbz-1173156.patch
+Patch6:		firefox-48-build-prbool.patch
+Patch7:		firefox-48-mozilla-1005640.patch
+Patch8:		firefox-48-mozilla-256180.patch
+Patch10:	firefox-49-mozilla-440908.patch
+Patch11:	firefox-49-old-ffmpeg.patch
+Patch22:	seamonkey-2.46-installdir.patch
+Patch27:	seamonkey-2.46-exthandler.patch
 
 Buildroot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %{?with_system_nspr:BuildRequires:      nspr-devel >= %{nspr_version}}
 %{?with_system_nss:BuildRequires:       nss-devel >= %{nss_version}}
 %{?with_system_nss:BuildRequires:       nss-static >= %{nss_version}}
+%{?with_system_libvpx:BuildRequires:    libvpx-devel >= %{libvpx_version}}
+%{?with_system_icu:BuildRequires:       libicu-devel >= %{icu_version}}
 %{?with_system_sqlite:BuildRequires:    sqlite-devel >= %{sqlite_version}}
-%{?with_system_libffi:BuildRequires:    libffi-devel >= %{libffi_version}}
+%{?with_system_ffi:BuildRequires:       libffi-devel >= %{ffi_version}}
 %{?with_system_cairo:BuildRequires:     cairo-devel >= %{cairo_version}}
 
 BuildRequires:  libpng-devel
@@ -88,18 +95,14 @@ BuildRequires:  libXrender-devel
 BuildRequires:  fileutils
 BuildRequires:  alsa-lib-devel
 BuildRequires:  hunspell-devel
-BuildRequires:  system-bookmarks
 BuildRequires:  libnotify-devel
-BuildRequires:  libvpx-devel >= 1.3.0
 BuildRequires:  yasm >= 1.1
 BuildRequires:  mesa-libGL-devel
 BuildRequires:  pulseaudio-libs-devel
-%if %{with gstreamer}
-BuildRequires:  gstreamer-devel, gstreamer-plugins-base-devel
-%endif
+
+BuildRequires:  autoconf213
 
 Requires:       system-bookmarks
-Requires:       redhat-indexhtml
 Requires:       mozilla-filesystem
 Requires:       hicolor-icon-theme
 %if %{with system_nspr}
@@ -113,8 +116,8 @@ Requires:       sqlite >= %(pkg-config --silence-errors --modversion sqlite 2>/d
 %endif
 
 # ppc64:   http://bugzilla.redhat.com/bugzilla/866589
-ExcludeArch: ppc64
-ExcludeArch: ppc64le
+# armv7hl: http://bugzilla.redhat.com/bugzilla/1035485
+ExclusiveArch:  %{ix86} x86_64
 
 AutoProv: 0
 %define _use_internal_dependency_generator 0
@@ -134,18 +137,18 @@ application formerly known as Mozilla Application Suite.
 cd %{sources_subdir}
 
 pushd mozilla
-%patch2 -p2 -b .jemalloc-ppc
+%patch2 -p1 -b .jemalloc-ppc
 %patch3 -p2 -b .build-arm
 %patch4 -p2 -b .966424
-%patch7 -p2 -b .1173156
-%patch10 -p1 -b .prbool
+%patch5 -p2 -b .1173156
+%patch6 -p1 -b .prbool
+%patch7 -p1 -b .1005640
+%patch8 -p1 -b .256180
+%patch10 -p1 -b .440908
+%patch11 -p1 -b .old-ffmpeg
 popd
 
-%patch15 -p2 -b .addons
-
-%patch20 -p1 -b .libsuite
 %patch22 -p2 -b .installdir
-%patch24 -p2 -b .nss_3_19_1
 %patch27 -p2 -b .exthandler
 
 sed -e 's/-MOZILLA_VERSION//g' \
@@ -167,9 +170,7 @@ ac_add_options --prefix=%{_prefix}
 ac_add_options --libdir=%{_libdir}
 
 #  to know where to remove extra things...
-ac_add_options --bindir=%{_bindir}
 ac_add_options --datadir=%{_datadir}
-ac_add_options --libdir=%{_libdir}
 ac_add_options --includedir=%{_includedir}
 
 ac_add_options --with-system-jpeg
@@ -177,18 +178,11 @@ ac_add_options --with-system-zlib
 ac_add_options --with-system-bz2
 #  system png is disabled because Mozilla requires APNG support in libpng
 #ac_add_options --with-system-png
-ac_add_options --with-system-libvpx
 ac_add_options --with-pthreads
 ac_add_options --disable-tests
 ac_add_options --disable-install-strip
-ac_add_options --disable-installer
-ac_add_options --enable-xinerama
 ac_add_options --enable-default-toolkit=cairo-gtk2
-ac_add_options --disable-xprint
-ac_add_options --enable-pango
-ac_add_options --enable-svg
-ac_add_options --enable-canvas
-ac_add_options --enable-extensions=default,irc
+ac_add_options --enable-extensions=default
 ac_add_options --disable-crashreporter
 ac_add_options --enable-safe-browsing
 ac_add_options --enable-system-hunspell
@@ -202,12 +196,15 @@ EOF
 
 echo "ac_add_options --with%{!?with_system_nspr:out}-system-nspr" >> .mozconfig
 echo "ac_add_options --with%{!?with_system_nss:out}-system-nss" >> .mozconfig
+echo "ac_add_options --with%{!?with_system_libvpx:out}-system-libvpx" >> .mozconfig
+echo "ac_add_options --with%{!?with_system_icu:out}-system-icu" >> .mozconfig
 
 echo "ac_add_options --%{?with_system_sqlite:en}%{!?with_system_sqlite:dis}able-system-sqlite" >> .mozconfig
-echo "ac_add_options --%{?with_system_libffi:en}%{!?with_system_libffi:dis}able-system-libffi" >> .mozconfig
+echo "ac_add_options --%{?with_system_ffi:en}%{!?with_system_ffi:dis}able-system-ffi" >> .mozconfig
 echo "ac_add_options --%{?with_system_cairo:en}%{!?with_system_cairo:dis}able-system-cairo" >> .mozconfig
 
-echo "ac_add_options --%{?with_gstreamer:en}%{!?with_gstreamer:dis}able-gstreamer" >> .mozconfig
+echo "ac_add_options --%{?with_calendar:en}%{!?with_calendar:dis}able-calendar" >> .mozconfig
+
 
 %ifarch %{arm}
 echo "ac_add_options --disable-elf-hack" >> .mozconfig
@@ -236,11 +233,13 @@ pref("shell.checkDefaultApps",   0);
 pref("media.gmp-gmpopenh264.provider.enabled",false);
 pref("media.gmp-gmpopenh264.autoupdate",false);
 pref("media.gmp-gmpopenh264.enabled",false);
-pref("media.fragmented-mp4.ffmpeg.enabled",false);
-pref("full-screen-api.enabled", true);
+pref("gfx.xrender.enabled",true);
 
 /*  use system dictionaries (hunspell)   */
 pref("spellchecker.dictionary_path","%{_datadir}/myspell");
+
+/* Allow sending credetials to all https:// sites */
+pref("network.negotiate-auth.trusted-uris", "https://");
 
 EOF
 # all-fedora.js
@@ -257,6 +256,13 @@ cd %{sources_subdir}
 # Mozilla builds with -Wall with exception of a few warnings which show up
 # everywhere in the code; so, don't override that.
 MOZ_OPT_FLAGS=$(echo $RPM_OPT_FLAGS | sed -e 's/-Wall//')
+
+#  needed for -Werror=format-security
+MOZ_OPT_FLAGS="$MOZ_OPT_FLAGS -Wformat"
+
+# Disable null pointer gcc6 optimization in gcc6 (rhbz#1328045)
+MOZ_OPT_FLAGS="$MOZ_OPT_FLAGS -fno-delete-null-pointer-checks"
+
 export CFLAGS=$MOZ_OPT_FLAGS
 export CXXFLAGS=$MOZ_OPT_FLAGS
 
@@ -379,12 +385,12 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %post
-update-desktop-database %{_datadir}/applications
+update-desktop-database -q &> /dev/null
 /bin/touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
 
 
 %postun
-update-desktop-database %{_datadir}/applications
+update-desktop-database -q &> /dev/null
 if [ $1 -eq 0 ] ; then
     /bin/touch --no-create %{_datadir}/icons/hicolor &>/dev/null
     /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
@@ -411,17 +417,49 @@ fi
 
 
 %changelog
-* Tue Jun 14 2016 Dmitry Butskoy <Dmitry@Butskoy.name> 2.40-2
+* Fri Dec 23 2016 Dmitry Butskoy <Dmitry@Butskoy.name> 2.46-1
+- update to 2.46
+- apply some patches from firefox-49 package
+- avoid runtime linking with too old ffmpeg libraries (#1330898)
+- still enable XRender extension by default
+
+* Thu Aug  4 2016 Jan Horak <jhorak@redhat.com> - 2.40-9
+- Revert changes introduced by 2.40-7. The system-bookmarks is
+  required for new profiles
+
+* Tue Aug  2 2016 Jan Horak <jhorak@redhat.com> - 2.40-8
+- Bump release due to rebuild
+
+* Mon Aug  1 2016 Jan Horak <jhorak@redhat.com> - 2.40-7
+- Seamonkey no longer require system-bookmarks during installation
+  (rhbz#1361851)
+
+* Tue Jul 22 2016 Tom Callaway <spot@fedoraproject.org> - 2.40-6
+- rebuild for libvpx 1.6.0
+
+* Tue Jul  5 2016 Dmitry Butskoy <Dmitry@Butskoy.name> 2.40-5
+- Disable null pointer gcc6 optimization in gcc-6.x (#1328045)
+
+* Sun Jul  3 2016 Dmitry Butskoy <Dmitry@Butskoy.name> 2.40-4
+- add fix for gcc-6.x (mozilla bug #1245783)
+
+* Tue Jun 14 2016 Dmitry Butskoy <Dmitry@Butskoy.name> 2.40-3
 - disable extra updatecheck (#1346171)
 - enable full-screen-api by default for media support
 
+* Mon Apr 18 2016 Caolán McNamara <caolanm@redhat.com> 2.40-2
+- rebuild for hunspell 1.4.0
+
 * Tue Mar 15 2016 Dmitry Butskoy <Dmitry@Butskoy.name> 2.40-1
 - update to 2.40
-- more robast helper detection when content type reported wrongly
-- delete temporary helpers files on exit (match Firefox way)
-- avoid ppc64le builds as well (#866589)
 
-* Tue Jan 19 2016 Dmitry Butskoy <Dmitry@Butskoy.name> 2.39-2
+* Tue Feb 16 2016 Martin Stransky <stransky@redhat.com> 2.39-5
+- Added gcc6 build fix
+
+* Thu Feb 04 2016 Fedora Release Engineering <releng@fedoraproject.org> - 2.39-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_24_Mass_Rebuild
+
+* Sat Jan 23 2016 Dmitry Butskoy <Dmitry@Butskoy.name> 2.39-3
 - use system dictionaries for spell checking
 - specify default homepage for builtin default locale (en_US) as well
 - drop tons of garbage from libsuite.so component
@@ -432,18 +470,40 @@ fi
       (better atomic support for changes and different releases)
     - actually provide information of files' locales for rpm package
     - conditionally build with system cairo, sqlite, libffi
+- more robast helper detection when content type reported wrongly
+- change some defaults to be the same as in Firefox:
+    - delete temporary helpers files on exit
+    - disable autoupdates by default
+    - match OS locale by default
+- avoid ppc64le builds as well (#866589)
+- build with system sqlite and libffi
+
+* Tue Dec  1 2015 Tom Callaway <spot@fedoraproject.org> 2.39-2
+- rebuild for libvpx 1.5.0
 
 * Mon Nov 16 2015 Dmitry Butskoy <Dmitry@Butskoy.name> 2.39-1
 - update to 2.39
 
-* Mon Oct 19 2015 Dmitry Butskoy <Dmitry@Butskoy.name> 2.38-1
+* Sun Oct 11 2015 Dmitry Butskoy <Dmitry@Butskoy.name> 2.38-1
 - update to 2.38
-- adapt for EPEL
-- use bundled gcc-4.8 for build
-- enable gstreamer-0.10 support
 
 * Sun Sep 13 2015 Dmitry Butskoy <Dmitry@Butskoy.name> 2.35-1
 - update to 2.35
+
+* Fri Jun 19 2015 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.33.1-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_23_Mass_Rebuild
+
+* Sat May 02 2015 Kalev Lember <kalevlember@gmail.com> - 2.33.1-3
+- Rebuilt for GCC 5 C++11 ABI change
+
+* Mon Apr 13 2015 Dmitry Butskoy <Dmitry@Butskoy.name>
+- cleanup of the startup script (#1210035)
+
+* Mon Apr  6 2015 Tom Callaway <spot@fedoraproject.org> - 2.33.1-2
+- rebuild against libvpx 1.4.0
+
+* Thu Mar 26 2015 Dmitry Butskoy <Dmitry@Butskoy.name> 2.33.1-1
+- update to 2.33.1
 
 * Mon Mar 16 2015 Dmitry Butskoy <Dmitry@Butskoy.name> 2.33-1
 - update to 2.33
@@ -465,19 +525,32 @@ fi
 - update to 2.30
 - apply some patches from firefox-33 package
 
+* Fri Sep 26 2014 Dmitry Butskoy <Dmitry@Butskoy.name> 2.29.1-1
+- update to 2.29.1
+
 * Sat Sep 20 2014 Dmitry Butskoy <Dmitry@Butskoy.name> 2.29-1
 - update to 2.29
 - apply some patches from firefox-32 package
-- build with system libvpx now
+
+* Wed Aug 20 2014 Kevin Fenzi <kevin@scrye.com> - 2.26.1-3
+- Rebuild for rpm bug 1131892
+
+* Mon Aug 18 2014 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.26.1-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_21_22_Mass_Rebuild
 
 * Tue Jun 24 2014 Dmitry Butskoy <Dmitry@Butskoy.name> 2.26.1-1
 - update to 2.26.1
 
-* Thu May  8 2014 Dmitry Butskoy <Dmitry@Butskoy.name> 2.26-1
-- update to 2.26
-- build with native nss and nspr for now
+* Sun Jun 08 2014 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.26-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_21_Mass_Rebuild
 
-* Sat Mar 22 2014 Dmitry Butskoy <Dmitry@Butskoy.name> 2.25-1
+* Fri May  9 2014 Dmitry Butskoy <Dmitry@Butskoy.name> 2.26-2
+- rebuild with new find-requires script
+
+* Fri May  9 2014 Dmitry Butskoy <Dmitry@Butskoy.name> 2.26-1
+- update to 2.26
+
+* Mon Mar 24 2014 Dmitry Butskoy <Dmitry@Butskoy.name> 2.25-1
 - update to 2.25
 
 * Mon Feb 10 2014 Dmitry Butskoy <Dmitry@Butskoy.name> 2.24-1
@@ -485,113 +558,92 @@ fi
 
 * Wed Dec 18 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.23-1
 - update to 2.23
-- drop no more needed patches
 
-* Thu Nov 21 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.22.1-1
+* Wed Nov 27 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.22.1-1
 - update to 2.22.1
+- don't build for armv7hl (seems not enough memory on the build system, #1035485)
 
-* Fri Nov  1 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.22-1
+* Sat Nov  2 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.22-1
 - update to 2.22
-- fix for BEAST issue in startup script (as in #1005611 for Firefox)
-- now need to enable rtti for C++ compiling by gcc-4.4
-  (ie. drop -fno-rtti flag)
 
-* Wed Sep 18 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.21-1
+* Thu Sep 19 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.21-1
 - update to 2.21
-- add patch to avoid c++0x code (not supported with gcc-4.4)
-
-* Wed Aug 14 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.20-2
-- rebuild with new system's nspr-4.9.5 and nss-3.14.3
 
 * Thu Aug  8 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.20-1
 - update to 2.20
-- fix build with system nss-3.14.0
+
+* Sun Aug 04 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.19-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_20_Mass_Rebuild
 
 * Mon Jul 15 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.19-2
-- use native nspr (version of 4.9.6) instead of the system one (4.9.2).
-  Seamonkey-2.19 with nspr patches seems to require at least nspr >= 4.9.3
+- implement separate switches for system/native nspr, nss and libvpx
 
-* Sat Jul  6 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.19-1
+* Mon Jul  8 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.19-1
 - update to 2.19
-- use bundled python-2.7 for build
-- no more touch omni.ja
 
 * Mon Apr 15 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.17.1-1
 - update to 2.17.1
 
 * Wed Apr  3 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.17-1
 - update to 2.17
-- enable WebRTC
-- explicitly require libjpeg-turbo (since old libjpeg
-  does not provide all the needed features), drop libjpeg62 patch
-- fix build with NSS's hasht.h header from the system nss-softokn-devel < 3.14
+- explicitly require libjpeg-turbo (for JCS_EXTENSIONS)
+
+* Tue Mar 26 2013 Peter Robinson <pbrobinson@fedoraproject.org> 2.16.2-2
+- Only build WebRTC on x86 to fix FTBFS on other arches
 
 * Fri Mar 15 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.16.2-1
 - update to 2.16.2
+- fix desktop files (#887297)
 
 * Tue Mar 12 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.16.1-1
 - update to 2.16.1
 
 * Fri Feb 22 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.16-1
 - update to 2.16
-- fix patch to allow build with system's nspr-4.9.2 instead of nspr-4.9.4
 - fix build langpacks
 
-* Mon Feb  4 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.15.2-1
+* Tue Feb  5 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.15.2-1
 - update to 2.15.2
-- fix build with new system nspr-4.9.2
 
-* Mon Jan 21 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.15.1-1
+* Sun Jan 27 2013 Rex Dieter <rdieter@fedoraproject.org> 2.15.1-2
+- silence scriptlet output
+
+* Tue Jan 22 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.15.1-1
 - update to 2.15.1
-- add fix for #304121 (derived from Xulrunner)
 
-* Wed Jan  9 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.15-1
+* Fri Jan 11 2013 Dmitry Butskoy <Dmitry@Butskoy.name> 2.15-1
 - update to 2.15
-- disable WebRTC support until nss >= 3.14 appear in RHEL6
-- fix build with RHEL6 system nss-3.13.5 (actually cosmetic things was changed)
-- fix build with RHEL6 libjpeg library (just use some little old stuff from 3.14.1)
 - don't try to change global user settings for default browser/mail etc.
+- add fix for #304121 (derived from Xulrunner)
 
 * Mon Dec  3 2012 Dmitry Butskoy <Dmitry@Butskoy.name> 2.14.1-1
 - update to 2.14.1
 
-* Wed Nov 21 2012 Dmitry Butskoy <Dmitry@Butskoy.name> 2.14-1
+* Thu Nov 22 2012 Dmitry Butskoy <Dmitry@Butskoy.name> 2.14-1
 - update to 2.14
-- change collapsed sidebar patch to upstream git applied one
 - fix elfhack compile
- 
-* Wed Oct 31 2012 Dmitry Butskoy <Dmitry@Butskoy.name> 2.13.2-1
-- update to 2.13.2
 
-* Tue Oct 16 2012 Dmitry Butskoy <Dmitry@Butskoy.name> 2.13.1-2
-- add patch for broken context menus when started with collapsed sidebar
-  (upstream bug 802166)
-
-* Mon Oct 15 2012 Dmitry Butskoy <Dmitry@Butskoy.name> 2.13.1-1
-- update to 2.13.1
-- build with separate objdir
+* Wed Oct 31 2012 Dmitry Butskoy <Dmitry@Butskoy.name> 2.13.2-2
 - exclude ppc64 arch (hoping it is temporary, #866589)
-
-* Thu Oct 11 2012 Dmitry Butskoy <Dmitry@Butskoy.name> 2.13-1
-- update to 2.13
-- add patch to avoid decommit memory on powerpc arches (#852698)
-- add seamonkey-related directories in mozilla-filesystem (#865054)
-- fix build with RHEL6 system nspr-4.9.1 (drop setting nspr thread names,
-  as it requires nspr >= 4.9.2, but just can be safely removed from the code)
-
-* Mon Oct  8 2012 Dmitry Butskoy <Dmitry@Butskoy.name> 2.12.1-2
-- drop version from install directories (follow the current
-  firefox and thunderbird way)
-- change License to MPLv2.0
-
-* Thu Sep 27 2012 Dmitry Butskoy <Dmitry@Butskoy.name> 2.12.1-1.el6
-- port to EPEL6
-- use EL6 homepage way
-- use proper MOZ_SMP_FLAGS
-- fix build langpacks
 - fix startup warnings (error console) for omni and inspector
-- complete default prefs from the latest RHEL6 Firefox and Fedora 18 Seamonkey
+- fix build langpacks
+- change License to MPLv2.0
+- add seamonkey-related directories in mozilla-filesystem (#865054)
+- use proper MOZ_SMP_FLAGS
 - add patch for jemalloc for powerpc arches (#852698)
+- add patch to avoid decommit memory on powerpc arches (#852698)
+- some cleanups in spec file
+- drop version from install directories (follow the current firefox
+  and thunderbird way)
+
+* Fri Oct 26 2012 Martin Stransky <stransky@redhat.com> 2.13.2-1
+- Update to 2.13.2
+
+* Tue Oct 16 2012 Martin Stransky <stransky@redhat.com> 2.13.1-1
+- Update to 2.13.1
+
+* Tue Oct 9 2012 Martin Stransky <stransky@redhat.com> 2.13-1
+- Update to 2.13
 
 * Tue Aug 28 2012 Martin Stransky <stransky@redhat.com> 2.12.1-1
 - Update to 2.12.1
@@ -689,198 +741,3 @@ fi
 
 * Tue Jan 04 2011 Adel Gadllah <adel.gadllah@gmail.com> 2.0.11-2
 - disabled system cairo, breaks animated gifs (rhbz#628331)
-
-* Mon Dec 13 2010 Martin Stransky <stransky@redhat.com> 2.0.11-1
-- Update to 2.0.11
-
-* Mon Nov 1 2010 Martin Stransky <stransky@redhat.com> 2.0.10-1
-- Update to 2.0.10
-
-* Thu Oct 21 2010 Martin Stransky <stransky@redhat.com> 2.0.9-1
-- Update to 2.0.9
-
-* Wed Oct 13 2010 Martin Stransky <stransky@redhat.com> 2.0.8-2
-- Added fix for mozbz#522635
-
-* Wed Sep 22 2010 Martin Stransky <stransky@redhat.com> 2.0.8-1
-- Update to 2.0.8
-
-* Tue Jul 20 2010 Martin Stransky <stransky@redhat.com> 2.0.6-1
-- Update to 2.0.6
-
-* Wed Jun 23 2010 Martin Stransky <stransky@redhat.com> 2.0.5-1
-- Update to 2.0.5
-
-* Thu Apr  1 2010 Martin Stransky <stransky@redhat.com> 2.0.4-1
-- Update to 2.0.4
-
-* Wed Feb 17 2010 Martin Stransky <stransky@redhat.com> 2.0.3-1
-- Update to 2.0.3
-
-* Thu Dec 17 2009 Jan Horak <jhorak@redhat.com> - 2.0.1-1
-- Update to 2.0.1
-
-* Tue Oct 27 2009 Martin Stransky <stransky@redhat.com> 2.0-7
-- Update to 2.0
-
-* Wed Oct 21 2009 Martin Stransky <stransky@redhat.com> 2.0-6
-- Fixed launcher script
-
-* Mon Oct 19 2009 Martin Stransky <stransky@redhat.com> 2.0-5
-- Update to 2.0 RC2
-
-* Tue Oct 13 2009 Martin Stransky <stransky@redhat.com> 2.0-4
-- Update to 2.0 RC1
-
-* Wed Sep 23 2009 Martin Stransky <stransky@redhat.com> 2.0-3.beta2
-- Update to 2.0 beta 2
-
-* Thu Aug 6 2009 Martin Stransky <stransky@redhat.com> 2.0-2.beta1
-- Added fix for #437596
-
-* Wed Jul 22 2009 Martin Stransky <stransky@redhat.com> 2.0-1.beta1
-- Update to 2.0 beta 1
-
-* Fri Jul 10 2009 Martin Stransky <stransky@redhat.com> 1.1.17-1
-- Update to 1.1.17
-
-* Thu Jun 18 2009 Kai Engert <kaie@redhat.com> 1.1.16-3
-- fix categories in desktop files
-
-* Thu May  7 2009 Kai Engert <kaie@redhat.com> 1.1.16-2
-- Update to 1.1.16
-
-* Wed May 6 2009 Martin Stransky <stransky@redhat.com> 1.1.15-4
-- build with -fno-strict-aliasing (#468415)
-
-* Fri Mar 27 2009 Christopher Aillon <caillon@redhat.com> - 1.15.1-3
-- Add patches for MFSA-2009-12, MFSA-2009-13
-
-* Wed Mar 25 2009 Christopher Aillon <caillon@redhat.com> - 1.15.1-2
-- Update default homepage
-
-* Wed Mar  4 2009 Fedora Security Response Team <fedora-security-list@redhat.com> - 1.1.15-1
-- Update to 1.1.15
-
-* Wed Feb 25 2009 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.1.14-4
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_11_Mass_Rebuild
-
-* Wed Feb 11 2009 Christopher Aillon <caillon@redhat.com> - 1.1.14-3
-- Drop explicit requirement on desktop-file-utils
-
-* Wed Jan 07 2009 Christopher Aillon <caillon@redhat.com> - 1.1.14-2
-- Disable the crash dialog
-
-* Wed Dec 17 2008 Kai Engert <kengert@redhat.com> - 1.1.14-1
-- Update to 1.1.14
-* Thu Dec 11 2008 Kai Engert <kengert@redhat.com> - 1.1.13-1
-- Update to 1.1.13
-- own additional directories, bug 474039
-* Thu Sep 25 2008 Christopher Aillon <caillon@redhat.com> - 1.1.12-1
-- Update to 1.1.12
-* Sat Jul  6 2008 Christopher Aillon <caillon@redhat.com> - 1.1.10-1
-- Update to 1.1.10
-- Use bullet characters to match GTK+
-* Wed Apr 30 2008 Christopher Aillon <caillon@redhat.com> - 1.1.9-4
-- Require mozilla-filesystem and drop its requires
-* Thu Apr 17 2008 Kai Engert <kengert@redhat.com> - 1.1.9-3
-- add several upstream patches, not yet released:
-  425576 (crash), 323508, 378132, 390295, 421622
-* Fri Mar 28 2008 Kai Engert <kengert@redhat.com> - 1.1.9-2
-- SeaMonkey 1.1.9
-* Sat Mar 15 2008 Christopher Aillon <caillon@redhat.com> - 1.1.8-6
-- Use the Fedora system bookmarks as default
-* Sat Mar 15 2008 Christopher Aillon <caillon@redhat.com> - 1.1.8-5
-- Avoid conflicts between gecko debuginfo packages
-* Thu Feb 14 2008 Kai Engert <kengert@redhat.com> - 1.1.8-4
-- remove workaround for 432138, use upstream patch
-* Sat Feb 09 2008 Kai Engert <kengert@redhat.com> - 1.1.8-3
-- make it build with nss 3.12, mozilla bug 399589
-- work around an issue with gcc 4.3.0, redhat bug 432138
-* Fri Feb 08 2008 Kai Engert <kengert@redhat.com> - 1.1.8-2
-- SeaMonkey 1.1.8
-* Mon Jan 07 2008 Kai Engert <kengert@redhat.com> - 1.1.7-4
-- Create and own /etc/skel/.mozilla
-* Mon Dec 03 2007 Kai Engert <kengert@redhat.com> - 1.1.7-3
-- fix dependencies, requires nspr 4.6.99 / nss 3.11.99
-* Sun Dec 02 2007 Kai Engert <kengert@redhat.com> - 1.1.7-2
-- SeaMonkey 1.1.7
-* Mon Nov 05 2007 Kai Engert <kengert@redhat.com> - 1.1.6-2
-- SeaMonkey 1.1.6
-* Fri Oct 19 2007 Kai Engert <kengert@redhat.com> - 1.1.5-2
-- SeaMonkey 1.1.5
-* Mon Sep 10 2007 Martin Stransky <stransky@redhat.com> 1.1.3-8
-- added fix for #246248 - firefox crashes when searching for word "do"
-* Tue Aug 28 2007 Kai Engert <kengert@redhat.com> - 1.1.3-7
-- Updated license tag
-* Tue Aug  7 2007 Martin Stransky <stransky@redhat.com> 1.1.3-6
-- removed plugin configuration utility
-* Mon Aug 6 2007 Martin Stransky <stransky@redhat.com> 1.1.3-5
-- unwrapped plugins moved to the old location
-* Mon Jul 30 2007 Martin Stransky <stransky@redhat.com> 1.1.3-4
-- added nspluginwrapper support
-* Fri Jul 27 2007 Martin Stransky <stransky@redhat.com> - 1.1.3-3
-- added pango patches
-* Fri Jul 20 2007 Kai Engert <kengert@redhat.com> - 1.1.3-2
-- SeaMonkey 1.1.3
-* Thu May 31 2007 Kai Engert <kengert@redhat.com> 1.1.2-2
-- SeaMonkey 1.1.2
-* Wed Feb 28 2007 Kai Engert <kengert@redhat.com> 1.1.1-2
-- SeaMonkey 1.1.1
-* Wed Feb 07 2007 Kai Engert <kengert@redhat.com> 1.1-2
-- Update to SeaMonkey 1.1
-- Pull in patches used by Firefox Fedora RPM package.
-- Fix the DND implementation to not grab, so it works with new GTK+.
-- Fix upgrade path from FC-5 by obsoleting the seamonkey subset
-  packages which recently obsoleted mozilla in FC-5.
-* Sat Dec 23 2006 Kai Engert <kengert@redhat.com> 1.0.7-1
-- SeaMonkey 1.0.7
-* Fri Nov 10 2006 Kai Engert <kengert@redhat.com> 1.0.6-2
-- Do not run regchrome.
-- Fix some .dat and .rdf ghost files.
-* Thu Nov 09 2006 Kai Engert <kengert@redhat.com> 1.0.6-1
-- SeaMonkey 1.0.6
-* Thu Sep 14 2006 Kai Engert <kengert@redhat.com> 1.0.5-1
-- SeaMonkey 1.0.5
-* Wed Sep 06 2006 Kai Engert <kengert@redhat.com> 1.0.4-8
-- patch5 -p0
-* Wed Sep 06 2006 Kai Engert <kengert@redhat.com> 1.0.4-7
-- Synch patches with those found in the Firefox package.
-- Add missing, clean up BuildRequires
-- Use --enable-system-cairo
-- Use a dynamic approach to require at least the NSPR/NSS 
-  library release used at build time.
-* Tue Aug 15 2006 Kai Engert <kengert@redhat.com> 1.0.4-6
-- Yet another forgotten patch file.
-* Tue Aug 15 2006 Kai Engert <kengert@redhat.com> 1.0.4-5
-- Commit forgotten visibility patch file.
-* Fri Aug  4 2006 Kai Engert <kengert@redhat.com> 1.0.4-4
-- Use a different patch to disable visibility.
-* Fri Aug  4 2006 Kai Engert <kengert@redhat.com> 1.0.4-3
-- Fix a build failure in mailnews mime code.
-* Thu Aug 03 2006 Kai Engert <kengert@redhat.com> 1.0.4-2
-- SeaMonkey 1.0.4
-* Wed Jun 07 2006 Kai Engert <kengert@redhat.com> 1.0.2-1
-- Update to SeaMonkey 1.0.2 release
-* Fri Apr 14 2006 Kai Engert <kengert@redhat.com> 1.0.1-1
-- Update to SeaMonkey 1.0.1 release
-* Tue Apr 11 2006 Kai Engert <kengert@redhat.com> 1.0-11
-- Fix PreReq statements
-* Tue Apr 11 2006 Kai Engert <kengert@redhat.com> 1.0-10
-- Added libXt-devel BuildRequires
-* Mon Apr 10 2006 Kai Engert <kengert@redhat.com> 1.0-9
-- Added dist suffix to release
-* Fri Mar 17 2006 Kai Engert <kengert@redhat.com> 1.0-8
-- Changed license to MPL
-* Tue Mar 14 2006 Kai Engert <kengert@redhat.com> 1.0-7
-- updated %%files section, removed %%preun,
-- removed explicit nspr/nss requires
-* Thu Mar 02 2006 Kai Engert <kengert@redhat.com> 1.0-6
-- Use a single package for all included applications.
-- Make sure installed JavaScript files are not executable.
-- Disable AutoProv, use find-external-requires.
-* Fri Feb 10 2006 Kai Engert <kengert@redhat.com> 1.0-4
-- Addressed several review comments, see bugzilla.redhat.com #179802.
-* Sat Jan 28 2006 Kai Engert <kengert@redhat.com> 1.0-1
-- Initial version based on Seamonkey 1.0, using a combination of patches 
-  from Mozilla 1.7.x, Firefox 1.5 and Thunderbird 1.5 RPM packages.
