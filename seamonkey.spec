@@ -1,8 +1,11 @@
+%if 0%{!?rhel}
 %bcond_without	system_nspr
 %bcond_without	system_nss
 %bcond_without	system_libvpx
 %bcond_without	system_icu
 %bcond_without	system_sqlite
+%endif
+
 %bcond_without	system_ffi
 %bcond_with	system_cairo
 
@@ -17,7 +20,7 @@
 %global ffi_version	3.0.9
 %global cairo_version	1.10
 
-%define homepage http://start.fedoraproject.org/
+%define homepage file:///usr/share/doc/HTML/index.html
 
 %define sources_subdir %{name}-%{version}
 
@@ -27,7 +30,7 @@
 Name:           seamonkey
 Summary:        Web browser, e-mail, news, IRC client, HTML editor
 Version:        2.46
-Release:        1%{?dist}
+Release:        2%{?dist}
 URL:            http://www.seamonkey-project.org
 License:        MPLv2.0
 Group:          Applications/Internet
@@ -417,6 +420,9 @@ fi
 
 
 %changelog
+* Thu Dec 29 2016 Jajauma's Packages <jajauma@yandex.ru> - 2.46-2
+- Adaptation for RHEL
+
 * Fri Dec 23 2016 Dmitry Butskoy <Dmitry@Butskoy.name> 2.46-1
 - update to 2.46
 - apply some patches from firefox-49 package
